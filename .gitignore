@@ -1,0 +1,6 @@
+EFI/
+kexts/
+tools/
+smbios.json
+config.json
+.DS_Store

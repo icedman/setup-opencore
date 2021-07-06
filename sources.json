@@ -1,0 +1,71 @@
+{
+"tools": [
+	{
+		"name": "opencore",
+		"author": "acidanthera",
+		"url": "https://github.com/acidanthera/OpenCorePkg/releases/download/0.7.1/OpenCore-0.7.1-RELEASE.zip"
+	},
+	{
+		"name": "gfxutil",
+		"author": "acidanthera",
+		"url": "https://github.com/acidanthera/gfxutil/releases/download/1.81b/gfxutil-1.81b-RELEASE.zip"
+	},
+	{
+		"name": "MaciASL",
+		"author": "acidanthera",
+		"url": "https://github.com/acidanthera/MaciASL/releases/download/1.6.1/MaciASL-1.6.1-RELEASE.dmg"
+	},
+	{
+		"name": "GenSMBIOS",
+		"author": "corpnewt",
+		"url": "https://github.com/corpnewt/GenSMBIOS"
+	},
+	{
+		"name": "USBMap",
+		"author": "corpnewt",
+		"url": "https://github.com/corpnewt/USBMap"
+	},
+	{
+		"name": "ProperTree",
+		"author": "corpnewt",
+		"url": "https://github.com/corpnewt/ProperTree"
+	},
+	{
+		"name": "SSDTTime",
+		"author": "corpnewt",
+		"url": "https://github.com/corpnewt/SSDTTime"
+	},
+	{
+		"name": "gibMacOS",
+		"author": "corpnewt",
+		"url": "https://github.com/corpnewt/gibMacOS"
+	}
+],
+"kexts": [
+	{
+		"name": "Lilu",
+		"author": "acidanthera",
+		"url": "https://github.com/acidanthera/Lilu/releases/download/1.5.4/Lilu-1.5.4-RELEASE.zip"
+	},
+	{
+		"name": "WhateverGreen",
+		"author": "acidanthera",
+		"url": "https://github.com/acidanthera/WhateverGreen/releases/download/1.5.1/WhateverGreen-1.5.1-RELEASE.zip"
+	},
+	{
+		"name": "AppleALC",
+		"author": "acidanthera",
+		"url": "https://github.com/acidanthera/AppleALC/releases/download/1.6.2/AppleALC-1.6.2-RELEASE.zip"
+	},
+	{
+		"name": "VirtualSMC",
+		"author": "acidanthera",
+		"url": "https://github.com/acidanthera/VirtualSMC/releases/download/1.2.5/VirtualSMC-1.2.5-RELEASE.zip"
+	},
+	{
+		"name": "IntelWifi",
+		"author": "acidanthera",
+		"url": "https://github.com/acidanthera/OpenCorePkg/releases/download/0.7.1/OpenCore-0.7.1-RELEASE.zip"
+	}
+]
+}

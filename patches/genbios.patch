@@ -1,0 +1,17 @@
+--- tools/GenSMBIOS/GenSMBIOS.command	2021-07-06 19:56:33.000000000 +0800
++++ ./GenSMBIOS.command	2021-07-06 19:56:26.000000000 +0800
+@@ -318,6 +318,14 @@
+         self.u.head("{} SMBIOS Info".format(smbios[0][0]))
+         print("")
+         print("\n\n".join(["Type:         {}\nSerial:       {}\nBoard Serial: {}\nSmUUID:       {}".format(x[0], x[1], x[2], x[3]) for x in smbios]))
++        
++        f = open("smbios.json", 'w')
++        f.write("{\n")
++        f.write("\n\n".join(["\"Type\": \"{}\",\n\"Serial\": \"{}\",\n\"BoardSerial\": \"{},\"\n\"SmUUID\": \"{}\"\n".format(x[0], x[1], x[2], x[3]) for x in smbios]))
++        f.write("}\n")
++        f.close()
++
++
+         if self.plist_data and self.plist and os.path.exists(self.plist):
+             # Let's apply - got a valid file, and plist data
+             if len(smbios) > 1:
