@@ -55,8 +55,8 @@ def downloadKexts ():
 		download(t['url'], target, t)
 
 def prepareBaseEFI ():
-	subprocess.call(['cp',  '-R', './tools/X64/EFI', './'])
-	subprocess.call(['cp',  './tools/Docs/Sample.plist', './EFI/OC/config.plist'])
+	subprocess.call(['cp',  '-R', './tools/opencore/X64/EFI', './'])
+	subprocess.call(['cp',  './tools/opencore/Docs/Sample.plist', './EFI/OC/config.plist'])
 
 if not os.path.isdir('./tools') and not os.path.isdir('./kexts'):
 	prepare()
