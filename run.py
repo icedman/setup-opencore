@@ -82,17 +82,21 @@ def findByKey(relative, key):
 	return None
 
 def updateSMBIOS() :
+	if not os.path.isfile('./smbios.json'):
+		print('\n\nERROR: smbios config not found. run ./tool/GenSMBIOS/GenSMBIOS.command\n\n')
+		return
+
 	smbios = json.load(open('./smbios.json'))
 	pi = findByKey(d, 'PlatformInfo')
 	gen = findByKey(pi, 'Generic')
-	mod = findByKey(gen, 'MLB')
-	mod.firstChild.nodeValue = smbios['BoardSerial']
-	mod = findByKey(gen, 'SystemProductName')
-	mod.firstChild.nodeValue = smbios['Type']
-	mod = findByKey(gen, 'SystemSerialNumber')
-	mod.firstChild.nodeValue = smbios['Serial']
-	mod = findByKey(gen, 'SystemUUID')
-	mod.firstChild.nodeValue = smbios['SmUUID']
+
+	for k in smbios:
+		mod = findByKey(gen, k)
+		mod.firstChild.nodeValue = smbios[k]
+
+##################
+# run
+##################
 
 # load config
 
@@ -105,8 +109,6 @@ updateSMBIOS()
 
 f = open("./EFI/OC/config.plist", "w")
 f.write(root.toxml())
-
-
 
 # grab('hello')
 

@@ -7,7 +7,7 @@
 +        
 +        f = open("smbios.json", 'w')
 +        f.write("{\n")
-+        f.write("\n\n".join(["\"Type\": \"{}\",\n\"Serial\": \"{}\",\n\"BoardSerial\": \"{}\",\n\"SmUUID\": \"{}\"\n".format(x[0], x[1], x[2], x[3]) for x in smbios]))
++        f.write("\n\n".join(["\"SystemProductName\": \"{}\",\n\"SystemSerialNumber\": \"{}\",\n\"MLB\": \"{}\",\n\"SystemUUID\": \"{}\"\n".format(x[0], x[1], x[2], x[3]) for x in smbios]))
 +        f.write("}\n")
 +        f.close()
 +
