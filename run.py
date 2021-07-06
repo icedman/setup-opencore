@@ -3,9 +3,18 @@
 import json
 import os
 import subprocess
+import sys
 
 f = open('./sources.json')
 sources = json.load(f)
+
+def grab (prompt):
+	sys.stdout.write(prompt)
+	sys.stdout.flush()
+	timeout = 0
+	i, o, e = select.select( [sys.stdin], [], [], timeout)
+    if i:
+        i = sys.stdin.readline().strip()
 
 def download(url, file, info):
 	sx = os.path.splitext(file)
