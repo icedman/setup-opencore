@@ -1,21 +1,20 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import json
 import os
 import subprocess
 import sys
 
-f = open('./sources.json')
-sources = json.load(f)
+from xml.dom import minidom
+
+sources = json.load(open('./sources.json'))
 
 def grab (prompt):
-	sys.stdout.write(prompt)
+	sys.stdout.write(prompt + ":")
 	sys.stdout.flush()
-	timeout = 0
-	i, o, e = select.select( [sys.stdin], [], [], timeout)
-    if i:
-        i = sys.stdin.readline().strip()
-
+	i = sys.stdin.readline().strip()
+	return i
+ 
 def download(url, file, info):
 	sx = os.path.splitext(file)
 	filename = sx[0]
@@ -72,4 +71,43 @@ if not os.path.isdir('./tools') and not os.path.isdir('./kexts'):
 
 if not os.path.isdir('./EFI'):
 	prepareBaseEFI()
+
+def findByKey(relative, key):
+	for k in relative.childNodes:
+		if k.nodeName == 'key' and k.firstChild.nodeValue.strip() == key:
+			if k.nextSibling.nodeName == 'dict':
+				return k.nextSibling
+			else:
+				return k.nextSibling.nextSibling
+	return None
+
+def updateSMBIOS() :
+	smbios = json.load(open('./smbios.json'))
+	pi = findByKey(d, 'PlatformInfo')
+	gen = findByKey(pi, 'Generic')
+	mod = findByKey(gen, 'MLB')
+	mod.firstChild.nodeValue = smbios['BoardSerial']
+	mod = findByKey(gen, 'SystemProductName')
+	mod.firstChild.nodeValue = smbios['Type']
+	mod = findByKey(gen, 'SystemSerialNumber')
+	mod.firstChild.nodeValue = smbios['Serial']
+	mod = findByKey(gen, 'SystemUUID')
+	mod.firstChild.nodeValue = smbios['SmUUID']
+
+# load config
+
+root = minidom.parse('./EFI/OC/config.plist')
+d = root.documentElement.getElementsByTagName('dict')[0]
+
+updateSMBIOS()
+
+# load save
+
+f = open("./EFI/OC/config.plist", "w")
+f.write(root.toxml())
+
+
+
+# grab('hello')
+
 
