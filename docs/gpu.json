@@ -1,8 +1,8 @@
 {
-"Framebuffer": "xx",
-"Framebuffer Profile": "xx",
-"WhateverGreen": "xx",
-"AAPL,ig-platform-id": "xx",
-"AAPL,snb-platform-id": "xx",
-"device-id": "xx"
+	"Framebuffer": "xx",
+	"Framebuffer Profile": "xx",
+	"WhateverGreen": "xx",
+	"AAPL,ig-platform-id": "xx",
+	"AAPL,snb-platform-id": "xx",
+	"device-id": "xx"
 }

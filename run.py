@@ -9,6 +9,9 @@ from xml.dom import minidom
 
 sources = json.load(open('./sources.json'))
 
+def _log(t):
+	print(t)
+
 def grab (prompt):
 	sys.stdout.write(prompt + ":")
 	sys.stdout.flush()
@@ -56,7 +59,6 @@ def downloadTools ():
 	# apply our patches
 	subprocess.call(['patch', '-fs', './tools/GenSMBIOS/GenSMBIOS.command', './patches/genbios.patch'])
 	
-
 def downloadKexts ():
 	for t in sources['kexts']:
 		target = os.path.join('./kexts', os.path.basename(t['url']))
@@ -79,6 +81,13 @@ def findByKey(root, key):
 			return k
 	return None
 
+def findByStringValue(root, str):
+	nodes = root.getElementsByTagName('string')
+	for k in nodes:
+		if k.nodeName == 'string' and k.firstChild and k.firstChild.nodeValue.strip() == str:
+			return k
+	return None
+
 def findByChildKey(relative, key):
 	nodes = relative.childNodes
 	for k in nodes:
@@ -89,9 +98,15 @@ def findByChildKey(relative, key):
 				return k.nextSibling.nextSibling
 	return None
 
+def createNodeValue(root, tag, value):
+	entry = root.createElement(tag)
+	if value:
+		entry.appendChild(root.createTextNode(value))
+	return entry
+
 def updateSMBIOS(root) :
 	if not os.path.isfile('./smbios.json'):
-		print('\n\nERROR: smbios config not found. run ./tool/GenSMBIOS/GenSMBIOS.command\n\n')
+		print('ERROR: smbios.json config not found. Run ./tool/GenSMBIOS/GenSMBIOS.command\n')
 		return
 
 	smbios = json.load(open('./smbios.json'))
@@ -104,17 +119,14 @@ def updateSMBIOS(root) :
 		mod = findByChildKey(gen, k)
 		mod.firstChild.nodeValue = smbios[k]
 
-def updateGPUProfile(gpu) :
-	print(gpu)
-
-def updateAPLC(alc):
-	print(alc)
-
 def updateDeviceProperties(root):
-
 	d = root.documentElement.getElementsByTagName('dict')[0]
 	dev = findByChildKey(d, 'DeviceProperties')
 	add = findByChildKey(dev, 'Add')
+
+	if not os.path.isfile('./gpu.json'):
+		print('ERROR: gpu.json config not found. Copy sample from /docs\n')
+		return
 
 	# gpu
 	gpu = findByChildKey(add, 'PciRoot(0x0)/Pci(0x2,0x0)')
@@ -146,13 +158,84 @@ def updateDeviceProperties(root):
 			mod.appendChild(root.createTextNode(value))
 			gpu.appendChild(mod)
 
-def updateKexts ():
+def updateKexts (root):
 	subprocess.call(['rm', '-rf', './EFI/OC/Kexts/*' ])
+
+	if not os.path.isfile('./kexts.json'):
+		print('ERROR: kexts.json config not found. Copy sample from /docs\n')
+		return
+
+	d = root.documentElement.getElementsByTagName('dict')[0]
+	kn = findByChildKey(d, 'Kernel')
+	add = findByChildKey(kn, 'Add')
+
+	# disable everything
+	for entry in add.getElementsByTagName('dict'):
+		enabled = findByChildKey(entry, 'Enabled')
+		enabled.tagName = 'false'
+
 
 	kexts = json.load(open('./kexts.json'))
 	for k in kexts['kexts']:
 		subprocess.call(['cp', '-r', k['path'], './EFI/OC/Kexts/'])
-		# todo add kext entry
+
+		kextName = os.path.basename(k['path'])
+		entry = findByStringValue(root, kextName)
+
+		execPath = 'Contents/MacOS/' + os.path.splitext(kextName)[0]
+		execRealPath = './EFI/OC/Kexts/' + kextName + '/' + execPath
+		if not os.path.isfile(execRealPath):
+			execPath = ''
+
+		plistPath = 'Contents/Info.plist'
+		plistRealPath = './EFI/OC/Kexts/' + kextName + '/' + plistPath
+		if not os.path.isfile(plistRealPath):
+			plistPath = ''
+
+		print(plistRealPath)
+
+		if entry:
+			parent = entry.parentNode
+			enabled = findByChildKey(entry.parentNode, 'Enabled')
+			enabled.tagName = 'true'
+			_log(kextName + ' enabled')
+		else:
+			entry = root.createElement('dict')
+			entry.appendChild(createNodeValue(root, 'key', 'Arch'))
+			entry.appendChild(createNodeValue(root, 'string', 'x86_64'))
+			entry.appendChild(createNodeValue(root, 'key', 'BundlePath'))
+			entry.appendChild(createNodeValue(root, 'string', kextName))
+			entry.appendChild(createNodeValue(root, 'key', 'Enabled'))
+			entry.appendChild(createNodeValue(root, 'true', None))
+			entry.appendChild(createNodeValue(root, 'key', 'ExecutablePath'))
+			entry.appendChild(createNodeValue(root, 'string', execPath))
+			entry.appendChild(createNodeValue(root, 'key', 'MaxKernel'))
+			entry.appendChild(createNodeValue(root, 'string', ''))
+			entry.appendChild(createNodeValue(root, 'key', 'MinKernel'))
+			entry.appendChild(createNodeValue(root, 'string', ''))
+			entry.appendChild(createNodeValue(root, 'key', 'PlistPath'))
+			entry.appendChild(createNodeValue(root, 'string', plistPath))
+			add.appendChild(entry)
+			_log(kextName + ' added')
+
+		# <dict>
+		# 	<key>Arch</key>
+		# 	<string>x86_64</string>
+		# 	<key>BundlePath</key>
+		# 	<string>Lilu.kext</string>
+		# 	<key>Comment</key>
+		# 	<string>Patch engine</string>
+		# 	<key>Enabled</key>
+		# 	<true/>
+		# 	<key>ExecutablePath</key>
+		# 	<string>Contents/MacOS/Lilu</string>
+		# 	<key>MaxKernel</key>
+		# 	<string/>
+		# 	<key>MinKernel</key>
+		# 	<string>10.0.0</string>
+		# 	<key>PlistPath</key>
+		# 	<string>Contents/Info.plist</string>
+		# </dict>
 
 ##################
 # run
@@ -164,7 +247,7 @@ root = minidom.parse('./EFI/OC/config.plist')
 
 updateSMBIOS(root)
 updateDeviceProperties(root)
-updateKexts()
+updateKexts(root)
 
 # load save
 
