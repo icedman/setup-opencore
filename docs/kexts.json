@@ -1,0 +1,7 @@
+{
+	"kexts": [
+		{ "path": "./kexts/Lilu/Lilu.kext" },
+		{ "path": "./kexts/VirtualSMC/Kexts/VirtualSMC.kext" },
+		{ "path": "./kexts/WhateverGreen/WhateverGreen.kext" }
+	]
+}

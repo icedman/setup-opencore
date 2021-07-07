@@ -72,27 +72,87 @@ if not os.path.isdir('./tools') and not os.path.isdir('./kexts'):
 if not os.path.isdir('./EFI'):
 	prepareBaseEFI()
 
-def findByKey(relative, key):
-	for k in relative.childNodes:
+def findByKey(root, key):
+	nodes = root.getElementsByTagName('key')
+	for k in nodes:
 		if k.nodeName == 'key' and k.firstChild.nodeValue.strip() == key:
-			if k.nextSibling.nodeName == 'dict':
+			return k
+	return None
+
+def findByChildKey(relative, key):
+	nodes = relative.childNodes
+	for k in nodes:
+		if k.nodeName == 'key' and k.firstChild.nodeValue.strip() == key:
+			if not k.nextSibling.nodeName == '#text':
 				return k.nextSibling
 			else:
 				return k.nextSibling.nextSibling
 	return None
 
-def updateSMBIOS() :
+def updateSMBIOS(root) :
 	if not os.path.isfile('./smbios.json'):
 		print('\n\nERROR: smbios config not found. run ./tool/GenSMBIOS/GenSMBIOS.command\n\n')
 		return
 
 	smbios = json.load(open('./smbios.json'))
-	pi = findByKey(d, 'PlatformInfo')
-	gen = findByKey(pi, 'Generic')
+
+	d = root.documentElement.getElementsByTagName('dict')[0]
+	pi = findByChildKey(d, 'PlatformInfo')
+	gen = findByChildKey(pi, 'Generic')
 
 	for k in smbios:
-		mod = findByKey(gen, k)
+		mod = findByChildKey(gen, k)
 		mod.firstChild.nodeValue = smbios[k]
+
+def updateGPUProfile(gpu) :
+	print(gpu)
+
+def updateAPLC(alc):
+	print(alc)
+
+def updateDeviceProperties(root):
+
+	d = root.documentElement.getElementsByTagName('dict')[0]
+	dev = findByChildKey(d, 'DeviceProperties')
+	add = findByChildKey(dev, 'Add')
+
+	# gpu
+	gpu = findByChildKey(add, 'PciRoot(0x0)/Pci(0x2,0x0)')
+	if not gpu:
+		gpu = root.createElement('key')
+		gpu.appendChild(root.createTextNode('PciRoot(0x0)/Pci(0x2,0x0)'))
+		add.appendChild(gpu)
+		props = root.createElement('dict')
+		add.appendChild(props)
+		gpu = props
+
+	gpuProps = json.load(open('./gpu.json'))
+	for k in gpuProps:
+		mod = findByChildKey(gpu, k)
+		value = gpuProps[k]
+		valueType = 'string'
+
+		if type(gpuProps[k]) is dict:
+			value = gpuProps[k]['value']
+			valueType = gpuProps[k]['type']
+
+		if mod:
+			mod.firstChild.nodeValue = value
+		else:
+			mod = root.createElement('key')
+			mod.appendChild(root.createTextNode(k))
+			gpu.appendChild(mod)
+			mod = root.createElement(valueType)
+			mod.appendChild(root.createTextNode(value))
+			gpu.appendChild(mod)
+
+def updateKexts ():
+	subprocess.call(['rm', '-rf', './EFI/OC/Kexts/*' ])
+
+	kexts = json.load(open('./kexts.json'))
+	for k in kexts['kexts']:
+		subprocess.call(['cp', '-r', k['path'], './EFI/OC/Kexts/'])
+		# todo add kext entry
 
 ##################
 # run
@@ -101,13 +161,15 @@ def updateSMBIOS() :
 # load config
 
 root = minidom.parse('./EFI/OC/config.plist')
-d = root.documentElement.getElementsByTagName('dict')[0]
 
-updateSMBIOS()
+updateSMBIOS(root)
+updateDeviceProperties(root)
+updateKexts()
 
 # load save
 
-f = open("./EFI/OC/config.plist", "w")
+f = open('./EFI/OC/config.plist', 'w')
+# f.write(root.toprettyxml(indent='    ', newl='\n'))
 f.write(root.toxml())
 
 # grab('hello')
