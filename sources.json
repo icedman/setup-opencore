@@ -39,6 +39,11 @@
 		"name": "gibMacOS",
 		"author": "corpnewt",
 		"url": "https://github.com/corpnewt/gibMacOS"
+	},
+	{
+		"name": "OCSanity",
+		"author": "rledorf",
+		"url": "https://github.com/rlerdorf/OCSanity"
 	}
 ],
 "kexts": [

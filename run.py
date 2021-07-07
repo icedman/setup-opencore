@@ -4,19 +4,40 @@ import json
 import os
 import subprocess
 import sys
+import re 
 
 from xml.dom import minidom
 
-sources = json.load(open('./sources.json'))
+# declare
+config = {}
+sources = {}
+targets = {}
+
+# settings
+tab = '  '
 
 def _log(t):
 	print(t)
 
+def _error(t):
+	print('Error: ' + t)
+
+def _header(head):
+	if head:
+		print('\n+----------------')
+		print('|:: ' + head)
+		print('+----------------')
+
 def grab (prompt):
-	sys.stdout.write(prompt + ":")
+	sys.stdout.write(prompt + ' ')
 	sys.stdout.flush()
 	i = sys.stdin.readline().strip()
 	return i
+
+def clean() :
+	subprocess.call(['rm', '-rf', './EFI'])
+	subprocess.call(['rm', '-rf', './tools'])
+	subprocess.call(['rm', '-rf', './kexts'])
  
 def download(url, file, info):
 	sx = os.path.splitext(file)
@@ -24,10 +45,12 @@ def download(url, file, info):
 	extension = sx[1]
 
 	if not os.path.isfile(file) and extension == '.zip':
+		_log(tab + 'downloading ' + filename + '...')
 		subprocess.call(['wget', '-P', os.path.dirname(file), url])
 
 	if not os.path.isdir(file) and extension == '':
 		os.chdir(os.path.dirname(file))
+		_log(tab + 'cloning ' + filename + '...')
 		subprocess.call(['git', 'clone', url ])
 		os.chdir('../')
 
@@ -47,9 +70,18 @@ def prepare ():
 		os.mkdir('./tools')
 	if not os.path.isdir('./kexts'):
 		os.mkdir('./kexts')
-		
+
+	if not os.path.isfile('./config.json'):
+		f = open('./config.json', 'w')
+		f.write('{}')
+		f.close()
+
 	downloadTools()
 	downloadKexts()
+
+	_log('\nPrepare done.')
+
+	return True
 
 def downloadTools ():
 	for t in sources['tools']:
@@ -57,7 +89,7 @@ def downloadTools ():
 		download(t['url'], target, t)
 
 	# apply our patches
-	subprocess.call(['patch', '-fs', './tools/GenSMBIOS/GenSMBIOS.command', './patches/genbios.patch'])
+	subprocess.call(['patch', '-fs', './tools/GenSMBIOS/GenSMBIOS.command', './support/genbios.patch'])
 	
 def downloadKexts ():
 	for t in sources['kexts']:
@@ -67,12 +99,8 @@ def downloadKexts ():
 def prepareBaseEFI ():
 	subprocess.call(['cp',  '-R', './tools/opencore/X64/EFI', './'])
 	subprocess.call(['cp',  './tools/opencore/Docs/Sample.plist', './EFI/OC/config.plist'])
+	_log('base EFI copied')
 
-if not os.path.isdir('./tools') and not os.path.isdir('./kexts'):
-	prepare()
-
-if not os.path.isdir('./EFI'):
-	prepareBaseEFI()
 
 def findByKey(root, key):
 	nodes = root.getElementsByTagName('key')
@@ -106,7 +134,7 @@ def createNodeValue(root, tag, value):
 
 def updateSMBIOS(root) :
 	if not os.path.isfile('./smbios.json'):
-		print('ERROR: smbios.json config not found. Run ./tool/GenSMBIOS/GenSMBIOS.command\n')
+		_error('smbios.json config not found. Run ./tool/GenSMBIOS/GenSMBIOS.command\n')
 		return
 
 	smbios = json.load(open('./smbios.json'))
@@ -115,9 +143,13 @@ def updateSMBIOS(root) :
 	pi = findByChildKey(d, 'PlatformInfo')
 	gen = findByChildKey(pi, 'Generic')
 
+	_log('\nPlatformInfo:')
+
 	for k in smbios:
 		mod = findByChildKey(gen, k)
 		mod.firstChild.nodeValue = smbios[k]
+		_log(tab + k + ': ' + smbios[k])
+
 
 def updateDeviceProperties(root):
 	d = root.documentElement.getElementsByTagName('dict')[0]
@@ -125,14 +157,17 @@ def updateDeviceProperties(root):
 	add = findByChildKey(dev, 'Add')
 
 	if not os.path.isfile('./gpu.json'):
-		print('ERROR: gpu.json config not found. Copy sample from /docs\n')
+		_error('gpu.json config not found. Copy sample from /docs\n')
 		return
 
 	# gpu
-	gpu = findByChildKey(add, 'PciRoot(0x0)/Pci(0x2,0x0)')
+	gpuAdd = 'PciRoot(0x0)/Pci(0x2,0x0)'
+	_log('\nDeviceProperties: ' + gpuAdd)
+
+	gpu = findByChildKey(add, gpuAdd)
 	if not gpu:
 		gpu = root.createElement('key')
-		gpu.appendChild(root.createTextNode('PciRoot(0x0)/Pci(0x2,0x0)'))
+		gpu.appendChild(root.createTextNode(gpuAdd))
 		add.appendChild(gpu)
 		props = root.createElement('dict')
 		add.appendChild(props)
@@ -158,11 +193,15 @@ def updateDeviceProperties(root):
 			mod.appendChild(root.createTextNode(value))
 			gpu.appendChild(mod)
 
+		_log(tab + k + ': ' + value)
+
 def updateKexts (root):
 	subprocess.call(['rm', '-rf', './EFI/OC/Kexts/*' ])
 
+	_log('\nKernel')
+
 	if not os.path.isfile('./kexts.json'):
-		print('ERROR: kexts.json config not found. Copy sample from /docs\n')
+		_error('kexts.json config not found. Copy sample from /docs\n')
 		return
 
 	d = root.documentElement.getElementsByTagName('dict')[0]
@@ -192,13 +231,11 @@ def updateKexts (root):
 		if not os.path.isfile(plistRealPath):
 			plistPath = ''
 
-		print(plistRealPath)
-
 		if entry:
 			parent = entry.parentNode
 			enabled = findByChildKey(entry.parentNode, 'Enabled')
 			enabled.tagName = 'true'
-			_log(kextName + ' enabled')
+			_log(tab + kextName + ' enabled')
 		else:
 			entry = root.createElement('dict')
 			entry.appendChild(createNodeValue(root, 'key', 'Arch'))
@@ -216,45 +253,137 @@ def updateKexts (root):
 			entry.appendChild(createNodeValue(root, 'key', 'PlistPath'))
 			entry.appendChild(createNodeValue(root, 'string', plistPath))
 			add.appendChild(entry)
-			_log(kextName + ' added')
+			_log(tab + kextName + ' added')
 
-		# <dict>
-		# 	<key>Arch</key>
-		# 	<string>x86_64</string>
-		# 	<key>BundlePath</key>
-		# 	<string>Lilu.kext</string>
-		# 	<key>Comment</key>
-		# 	<string>Patch engine</string>
-		# 	<key>Enabled</key>
-		# 	<true/>
-		# 	<key>ExecutablePath</key>
-		# 	<string>Contents/MacOS/Lilu</string>
-		# 	<key>MaxKernel</key>
-		# 	<string/>
-		# 	<key>MinKernel</key>
-		# 	<string>10.0.0</string>
-		# 	<key>PlistPath</key>
-		# 	<string>Contents/Info.plist</string>
-		# </dict>
+def updateACPI(root):
+	_log('\nACPI:')
+
+def cleanupConfig(root):
+	# remove warnings
+	for i in [1,2,3,4]:
+		key = findByKey(root, '#WARNING - ' + str(i))
+		if key:
+			val = key.nextSibling.nextSibling
+			key.parentNode.removeChild(val)
+			key.parentNode.removeChild(key)
+
+def lintXML():
+	_log('\nLinting config.plist...')
+	# prettify
+	f = open('./config.plist', 'w')
+	proc = subprocess.Popen(['xmllint --pretty 1 ./EFI/OC/config.plist'], shell=True, stdout=f)
+	proc.wait()
+	f.close()
+
+	subprocess.call(['mv', './config.plist', './EFI/OC/config.plist'])
+
+def save(root):
+	f = open('./EFI/OC/config.plist', 'w')
+	f.write(root.toxml())
+	lintXML()
+
+def menu(title, prompt, menu):
+	_header(title)
+	i = 1
+
+	for m in menu:
+		print(' ' + str(i) + '. ' + m['title'])
+		i += 1
+
+	res = grab('\n' + prompt)
+
+	if not res:
+		return True
+
+	res = int(res) - 1
+	if res < len(menu):
+		cmd = menu[int(res)]
+		if cmd and 'cmd' in cmd:
+			if cmd['cmd']():
+				grab('press [enter] to continue...')
+				print('\n')
+				return True
+			else:
+				return False
+
+		if cmd and 'return' in cmd:
+			return cmd['return']
+
+
+	return True
+
+def quit():
+	return False
+
+def selectPlatform():
+	_header('Platforms')
+
+	pc = menu(None, 'Select', [
+		{ 'title': 'Laptop', 'return': 'laptop '},
+		{ 'title': 'Desktop', 'return': 'desktop '}
+	])
+
+	target = './tools/OCSanity/rules'
+	if not os.path.isdir(target):
+		_error('OCSanity not available')
+
+	for f in os.listdir(target):
+		m = re.match('([a-zA-Z]{1,20})[0-9]{0,3}', f)
+		if m:
+			g = m.groups()[0]
+			targets[g] = {
+				'name': g.replace('laptop', 'laptop '),
+				'path': os.path.join(target, f),
+				'laptop': 'laptop' in g
+				}
+
+	for t in targets:
+		f = open(targets[t]['path'])
+		targets[t]['description'] = f.readline().strip()
+		f.close()
+
+		if (pc == 'laptop' and targets[t]['laptop']): # or (pc == 'desktop' and not targets[t]['laptop']):
+			print(targets[t]['description'])
+
+		# print(targets[t])
+
+	return True
+
+def build():
+	root = minidom.parse('./EFI/OC/config.plist')
+
+	updateSMBIOS(root)
+	updateDeviceProperties(root)
+	updateKexts(root)
+	updateACPI(root)
+	cleanupConfig(root)
+	save(root)
+
+	_log('\nBuild Done.')
+	return True
 
 ##################
 # run
 ##################
 
-# load config
+_log('Checking files')
 
-root = minidom.parse('./EFI/OC/config.plist')
+sources = json.load(open('./sources.json'))
 
-updateSMBIOS(root)
-updateDeviceProperties(root)
-updateKexts(root)
+if not os.path.isdir('./EFI'):
+	prepare()
+	prepareBaseEFI()
 
-# load save
+def run():
+	running = True
+	while(running):
+		running = menu('Main', 'select:', [
+				{ 'title': 'Prepare tools', 'cmd': prepare },
+				{ 'title': 'Select platform', 'cmd': selectPlatform },
+				{ 'title': 'Configure', 'cmd': quit },
+				{ 'title': 'Build EFI', 'cmd': build },
+				{ 'title': 'Quit', 'cmd': quit },
+		])
 
-f = open('./EFI/OC/config.plist', 'w')
-# f.write(root.toprettyxml(indent='    ', newl='\n'))
-f.write(root.toxml())
-
-# grab('hello')
-
-
+run()
+# selectPlatform()
