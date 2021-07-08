@@ -6,4 +6,5 @@ gpu.json
 smbios.json
 config.json
 ocsanity.lst
+ocsanity.json
 .DS_Store

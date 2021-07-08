@@ -385,7 +385,7 @@ def build():
 	updateDeviceProperties(root)
 	updateKexts(root)
 	updateACPI(root)
-	applyOCS(root)
+	applyOCS(root, ocstree)
 	cleanupConfig(root)
 	save(root)
 
@@ -404,95 +404,102 @@ def loadOCSanity():
 
 	return res
 
-def getOCS(key, subkey):
-	res = []
-	wasNL = True
-	_key = ''
-	_subkey = ''
-	for l in ocsanity:
-		l = l.strip()
-
-		if l.startswith('#') or l.startswith('='):
-			continue
-
-		if len(l) == 0:
-			wasNL = True
-			continue
-		
-		if wasNL or l.startswith(':'):
-			if l.startswith(':'):
-				_subkey = l.replace(':', '')
-			else:
-				_key = l
-				_subkey = ''
-			wasNL = False
-			continue
-
-		if key == _key and subkey == _subkey:
-			res.append(l)
-
-	# print(res)
-	return res
-
 def buildOCSTree():
+	tree = {}
+	stack = []
+	topLevel = False
 	wasNL = True
-	_key = ''
-	_subkey = ''
+	sublevel = False
 	for l in ocsanity:
-		l = l.strip()
-
 		if l.startswith('#') or l.startswith('='):
 			continue
 
-		if len(l) == 0:
-			wasNL = True
-			continue
-		
-		if wasNL or l.startswith(':'):
-			if l.startswith(':'):
-				_subkey = l.replace(':', '')
-				ocstree[_key].append(_subkey)
-			else:
-				_key = l
-				_subkey = ''
-				if not l in ocstree:
-					ocstree[l] = []
-			wasNL = False
+		if len(l.strip()) == 0:
+			if sublevel:
+				stack.pop()
+				sublevel = False
 			continue
 
-	# print(ocstree)
-	return ocstree
+		if len(stack) == 0:
+			stack = [tree]
 
-def applyOCSItem(root, key, subkey):
-	items = getOCS(key, subkey)
+		top = stack[len(stack)-1]
 
-	d = root.documentElement.getElementsByTagName('dict')[0]
-	dt = findByChildKey(d, key)
-	sdt = findByChildKey(dt, subkey)
+		# item
+		if l.startswith(' '):
+			if not '_items' in top:
+				top['_items'] = []
+			top['_items'].append(l.strip())
+			continue
 
-	for i in items:
-		m = re.match('([a-zA-Z0-9]*)=(yes|no)', i)
-		if m:
-			g = m.groups()
-			sitem = findByChildKey(sdt, g[0])
-			if not sitem:
-				continue
-			ntag = 'false'
-			if g[1] == 'yes':
-				ntag = 'true'
-			if ntag != sitem.tagName:
-				sitem.tagName = ntag
-				_log(tab + subkey + ':' + g[0] + ' set to ' + ntag)
+		if l.startswith(':'):
+			sublevel = True
+		else:
+			top = tree
+			sublevel = False
 
-	return
+		l = l.strip().replace(':', '')
+		top[l] = {}
+		stack.append(top[l])
 
-def applyOCS(root):
+	f = open('./ocsanity.json', 'w')
+	json.dump(tree, f, indent=4)
+	f.close()
+
+	return tree
+
+def applyOCSItem(relative, item):
+	d = relative #.getElementsByTagName('dict')[0]
+	m = re.match('([a-zA-Z0-9]*)=(yes|no)', item)
+	if m:
+		g = m.groups()
+		sitem = findByChildKey(d, g[0])
+		if not sitem:
+			return
+
+		ntag = 'false'
+		if g[1] == 'yes':
+			ntag = 'true'
+		if ntag != sitem.tagName:
+			sitem.tagName = ntag
+			_log(tab + tab + g[0] + ' set to ' + ntag)
+
+def _applyOCS(relative, ocst, t):
+	dd = relative.getElementsByTagName('dict')
+	if len(dd) == 0:
+		dd = relative.getElementsByTagName('array')
+	if len(dd) == 0:
+		d = relative
+	else:
+		d = dd[0]
+
+	if not t:
+		t = tab
+
+	for k in ocst:
+		if k.startswith('_'):
+			if k == '_items' :
+				for i in ocst['_items']:
+					# _log(t + tab + i)
+					applyOCSItem(d, i)
+
+			continue
+
+		_log(t + k)
+
+		r = findByChildKey(d, k)
+		if not r:
+			r = findByChildKey(relative, k)
+
+		if not r:
+			print('skip ' + k)
+			continue
+
+		_applyOCS(r, ocst[k], t + tab)
+
+def applyOCS(root,ocst):
 	_log('\napplying OCSanity settings')
-	for k in ocstree:
-		_log(k)
-		for sk in ocstree[k]:
-			# _log(tab + sk)
-			applyOCSItem(root, k, sk)
+	_applyOCS(root,ocst,'')
 
 ##################
 # run
@@ -507,7 +514,9 @@ if not os.path.isdir('./EFI'):
 	prepareBaseEFI()
 
 ocsanity = loadOCSanity()
-buildOCSTree()
+ocstree = buildOCSTree()
+
+# print(ocstree)
 
 def run():
 	running = True
