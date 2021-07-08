@@ -12,6 +12,8 @@ from xml.dom import minidom
 config = {}
 sources = {}
 targets = {}
+ocsanity = []
+ocstree = {}
 
 # settings
 tab = '  '
@@ -256,7 +258,8 @@ def updateKexts (root):
 			_log(tab + kextName + ' added')
 
 def updateACPI(root):
-	_log('\nACPI:')
+	# _log('\nACPI:')
+	return
 
 def cleanupConfig(root):
 	# remove warnings
@@ -295,8 +298,18 @@ def menu(title, prompt, menu):
 	if not res:
 		return True
 
+	m = re.match('([0-9]*)', res)
+	if m:
+		res = m.groups()[0]
+	else:
+		return True
+
+	if not res:
+		return True
+
 	res = int(res) - 1
 	if res < len(menu):
+
 		cmd = menu[int(res)]
 		if cmd and 'cmd' in cmd:
 			if cmd['cmd']():
@@ -318,9 +331,11 @@ def quit():
 def selectPlatform():
 	_header('Platforms')
 
+	mnu = []
+
 	pc = menu(None, 'Select', [
-		{ 'title': 'Laptop', 'return': 'laptop '},
-		{ 'title': 'Desktop', 'return': 'desktop '}
+		{ 'title': 'Laptop', 'return': 'laptop'},
+		{ 'title': 'Desktop', 'return': 'desktop'}
 	])
 
 	target = './tools/OCSanity/rules'
@@ -339,14 +354,28 @@ def selectPlatform():
 
 	for t in targets:
 		f = open(targets[t]['path'])
-		targets[t]['description'] = f.readline().strip()
+		targets[t]['description'] = f.readline().strip().replace('# ', '')
 		f.close()
 
-		if (pc == 'laptop' and targets[t]['laptop']): # or (pc == 'desktop' and not targets[t]['laptop']):
-			print(targets[t]['description'])
+		if targets[t]['laptop'] and not pc == 'laptop':
+			continue
 
-		# print(targets[t])
+		if not targets[t]['laptop'] and pc == 'laptop':
+			continue
 
+		# print(targets[t]['description'])
+		mnu.append({
+			'title': targets[t]['description'],
+			'return': t
+			})
+
+	res = menu('Generation', 'Select', mnu)
+	if res == True:
+		return True
+
+	subprocess.call(['cp', targets[res]['path'], './ocsanity.lst'])
+	_log(targets[res]['description'] + ' selected')
+	
 	return True
 
 def build():
@@ -356,11 +385,114 @@ def build():
 	updateDeviceProperties(root)
 	updateKexts(root)
 	updateACPI(root)
+	applyOCS(root)
 	cleanupConfig(root)
 	save(root)
 
 	_log('\nBuild Done.')
+
 	return True
+
+def loadOCSanity():
+	if not os.path.isfile('./ocsanity.lst'):
+		_error('Platform yet not selected.')
+		return
+
+	f = open('./ocsanity.lst', 'r')
+	res = f.readlines()
+	f.close()
+
+	return res
+
+def getOCS(key, subkey):
+	res = []
+	wasNL = True
+	_key = ''
+	_subkey = ''
+	for l in ocsanity:
+		l = l.strip()
+
+		if l.startswith('#') or l.startswith('='):
+			continue
+
+		if len(l) == 0:
+			wasNL = True
+			continue
+		
+		if wasNL or l.startswith(':'):
+			if l.startswith(':'):
+				_subkey = l.replace(':', '')
+			else:
+				_key = l
+				_subkey = ''
+			wasNL = False
+			continue
+
+		if key == _key and subkey == _subkey:
+			res.append(l)
+
+	# print(res)
+	return res
+
+def buildOCSTree():
+	wasNL = True
+	_key = ''
+	_subkey = ''
+	for l in ocsanity:
+		l = l.strip()
+
+		if l.startswith('#') or l.startswith('='):
+			continue
+
+		if len(l) == 0:
+			wasNL = True
+			continue
+		
+		if wasNL or l.startswith(':'):
+			if l.startswith(':'):
+				_subkey = l.replace(':', '')
+				ocstree[_key].append(_subkey)
+			else:
+				_key = l
+				_subkey = ''
+				if not l in ocstree:
+					ocstree[l] = []
+			wasNL = False
+			continue
+
+	# print(ocstree)
+	return ocstree
+
+def applyOCSItem(root, key, subkey):
+	items = getOCS(key, subkey)
+
+	d = root.documentElement.getElementsByTagName('dict')[0]
+	dt = findByChildKey(d, key)
+	sdt = findByChildKey(dt, subkey)
+
+	for i in items:
+		m = re.match('([a-zA-Z0-9]*)=(yes|no)', i)
+		if m:
+			g = m.groups()
+			sitem = findByChildKey(sdt, g[0])
+			if not sitem:
+				continue
+			ntag = 'false'
+			if g[1] == 'yes':
+				ntag = 'true'
+			if ntag != sitem.tagName:
+				sitem.tagName = ntag
+				_log(tab + subkey + ':' + g[0] + ' set to ' + ntag)
+
+	return
+
+def applyOCS(root):
+	_log('\napplying OCSanity settings')
+	for k in ocstree:
+		_log(k)
+		for sk in ocstree[k]:
+			# _log(tab + sk)
+			applyOCSItem(root, k, sk)
 
 ##################
 # run
@@ -374,6 +506,9 @@ if not os.path.isdir('./EFI'):
 	prepare()
 	prepareBaseEFI()
 
+ocsanity = loadOCSanity()
+buildOCSTree()
+
 def run():
 	running = True
 	while(running):
@@ -386,4 +521,3 @@ def run():
 		])
 
 run()
-# selectPlatform()
